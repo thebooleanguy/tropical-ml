@@ -1,51 +1,58 @@
+# Importing necessary libraries
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-# Load the dataset
+# Load dataset
 data = pd.read_csv('dataset/SriLanka_Weather_Dataset.csv')
-
-# Display basic information about the dataset
-print(data.head())
-print(data.info())
-print(data.describe())
 
 # Convert 'time' column to datetime format
 data['time'] = pd.to_datetime(data['time'])
 
-# Extract useful date features
+# Extract useful time-based features
 data['year'] = data['time'].dt.year
 data['month'] = data['time'].dt.month
 data['day'] = data['time'].dt.day
-data['day_of_year'] = data['time'].dt.dayofyear
-data['week_of_year'] = data['time'].dt.isocalendar().week
+data['day_of_week'] = data['time'].dt.dayofweek
 
-# Convert 'sunrise' and 'sunset' to datetime and calculate daylight duration
-data['sunrise'] = pd.to_datetime(data['sunrise'])
-data['sunset'] = pd.to_datetime(data['sunset'])
-data['daylight_hours'] = (data['sunset'] - data['sunrise']).dt.total_seconds() / 3600
+# Drop unnecessary columns
+data.drop(columns=['time', 'country', 'latitude', 'longitude', 'elevation', 'sunrise', 'sunset',
+                   'apparent_temperature_max', 'apparent_temperature_min', 'snowfall_sum'], inplace=True)
 
-# Drop unnecessary columns (raw time, text-based location info)
-data = data.drop(columns=['time', 'sunrise', 'sunset', 'country'])
+# Define input features (X) and target variable (y) for temperature prediction
+X = data.drop(columns=['temperature_2m_mean', 'city'])  # Predicting temperature
+y_temp = data['temperature_2m_mean']
 
-# Encode 'city' as numerical labels
-encoder = LabelEncoder()
-data['city'] = encoder.fit_transform(data['city'])
+# Define input features (X) and target variable (y) for precipitation prediction
+y_rain = data['precipitation_sum']  # Target for rain prediction
 
-# Select target variable (change based on prediction goal)
-target = 'temperature_2m_mean'  # Change to 'weathercode' for classification
-X = data.drop(columns=[target])
-y = data[target]
+# Split data into training (80%) and testing (20%) for both targets
+X_train, X_test, y_temp_train, y_temp_test = train_test_split(X, y_temp, test_size=0.2, random_state=42)
+X_train_rain, X_test_rain, y_rain_train, y_rain_test = train_test_split(X, y_rain, test_size=0.2, random_state=42)
 
-# Split data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Initialize models
+linear_reg_temp = LinearRegression()
+decision_tree_rain = DecisionTreeRegressor(random_state=42)
 
-# Scale numerical features to standardize value ranges
-scaler = StandardScaler()
-numerical_cols = X_train.select_dtypes(include=['float64', 'int64']).columns
-X_train[numerical_cols] = scaler.fit_transform(X_train[numerical_cols])
-X_test[numerical_cols] = scaler.transform(X_test[numerical_cols])
+# Train models
+linear_reg_temp.fit(X_train, y_temp_train)
+decision_tree_rain.fit(X_train_rain, y_rain_train)
 
-# Print final dataset shape
-print("Training data shape:", X_train.shape)
-print("Testing data shape:", X_test.shape)
+# Make predictions
+y_temp_pred = linear_reg_temp.predict(X_test)
+y_rain_pred = decision_tree_rain.predict(X_test_rain)
+
+# Evaluate Linear Regression Model (Temperature Prediction)
+print("Linear Regression Model Evaluation (Temperature Prediction):")
+print("Mean Absolute Error:", mean_absolute_error(y_temp_test, y_temp_pred))
+print("Mean Squared Error:", mean_squared_error(y_temp_test, y_temp_pred))
+print("R-squared Score:", r2_score(y_temp_test, y_temp_pred))
+
+# Evaluate Decision Tree Model (Precipitation Prediction)
+print("\nDecision Tree Model Evaluation (Precipitation Prediction):")
+print("Mean Absolute Error:", mean_absolute_error(y_rain_test, y_rain_pred))
+print("Mean Squared Error:", mean_squared_error(y_rain_test, y_rain_pred))
+print("R-squared Score:", r2_score(y_rain_test, y_rain_pred))
+
